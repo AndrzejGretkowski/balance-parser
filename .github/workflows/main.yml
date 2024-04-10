@@ -46,5 +46,5 @@ jobs:
       - name: Archive production artifacts
         uses: actions/upload-artifact@v2
         with:
-          name: parse_files.exe
+          name: parse_files
           path: dist/parse_files.exe
