@@ -4,12 +4,12 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from warnings import warn
+import ctypes
 
 import pandas as pd
 import xlsxwriter
 
 DT_STRING = "%d-%m-%Y"
-MAX_HOURS = 25
 
 
 def read_file(filepath):
@@ -66,6 +66,13 @@ def parse_args():
     return args
 
 
+def message_box(title, message):
+    try:
+        ctypes.windll.user32.MessageBoxW(0, message, title, 1)
+    except Exception:
+        warn("Message failed to send.")
+
+
 if __name__ == "__main__":
     args = parse_args()
     all_balances = defaultdict(list)
@@ -74,20 +81,19 @@ if __name__ == "__main__":
             file_dict = read_file(file_path)
         except Exception:
             warn(f"Verify file {file_path} -- it is incorrect!!!")
-            input('Press ENTER to close...')
+            input("Press ENTER to close...")
         all_balances[file_dict["name"]].append(file_dict)
-        if abs(file_dict["hours"] - 24) > 1:
-            warn(f"File {file_path} has a wrong number of hours!!!")
 
     # Sorted raw data
     for balance_name, balance in all_balances.items():
         balance.sort(key=lambda x: x["date"])
         all_dates = [b["date"] for b in balance]
         if len(set(all_dates)) != len(all_dates):
-            warn(f"Balance {balance_name} has repeating dates!!!")
+            message_box("WARNING", f"Balance {balance_name} has repeating dates!!!")
         if len(set([len(b["numbers"]) for b in balance])) != 1:
-            warn(
-                f"Balance {balance_name} has different sizes of hours in some files!!!"
+            message_box(
+                "WARNING",
+                f"Balance {balance_name} has different sizes of hours in some files!!!",
             )
 
     # Creating excel sheet
@@ -95,17 +101,21 @@ if __name__ == "__main__":
         for i, (balance_name, balance) in enumerate(
             sorted(all_balances.items(), key=lambda x: x[0]), 1
         ):
-            columns = list(range(1, MAX_HOURS + 1)) + ["sign"]
+            # Determine max_hours
+            balance_hours = [balance_day["hours"] for balance_day in balance]
+            max_hours = 100 if any(h > 25 for h in balance_hours) else 25
+
+            columns = list(range(1, max_hours + 1)) + ["sign"]
             rows = [d["date"].strftime(DT_STRING) for d in balance]
             data = []
             for balance_day in balance:
                 # Raw numbers
-                data_day = [n for n in balance_day["numbers"]][:MAX_HOURS]
+                data_day = [n for n in balance_day["numbers"]][:max_hours]
                 # Fix size 23 hours
                 if len(data_day) == 23:
                     data_day = data_day[:2] + [None] + data_day[2:]
                 # Fill to size
-                data_day.extend([None] * (MAX_HOURS - len(data_day)))
+                data_day.extend([None] * (max_hours - len(data_day)))
                 # Add signs (+ * -) to the end
                 data_day.append(" ".join(sorted(set(balance_day["signs"]))))
                 data.append(data_day)
@@ -113,8 +123,8 @@ if __name__ == "__main__":
             # creating single sheet
             df = pd.DataFrame(data, index=rows, columns=columns)
             sheetname = f"sheet_{i}"
-            df.to_excel(writer, sheetname)
+            df.to_excel(excel_writer=writer, sheet_name=sheetname)
             worksheet = writer.sheets[sheetname]
             worksheet.write("A1", balance_name)
 
-    input('Press ENTER to close...')
+    input("Press ENTER to close...")
