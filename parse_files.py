@@ -89,7 +89,7 @@ if __name__ == "__main__":
         balance.sort(key=lambda x: x["date"])
         all_dates = [b["date"] for b in balance]
         if len(set(all_dates)) != len(all_dates):
-            message_box("WARNING", f"Balance {balance_name} has repeating dates!!!")
+            warn(f"Balance {balance_name} has repeating dates!!!")
         if len(set([len(b["numbers"]) for b in balance])) != 1:
             message_box(
                 "WARNING",
